@@ -1,17 +1,3 @@
-# getUnctadCPIData()
-# Downloads UNCTADstat CPI Data
-#
-# Input:
-# - years e.g: 2000:2024
-# - economies: c('Austria','Germany','Asia'), NULL: All Countries
-# - clientId: from UNCAD website
-# - clientSecret: from UNCAD website
-# - direction: 1:inward, 1:outward
-# - flowStock: "08": Flow, "09": Stock
-# Output:
-# - data.table with the selected inputs
-
-# -------------------------------------------------------------------
 # getUnctadCpiData()
 # Downloads UNCTADstat CPI (analytical) Data
 #
