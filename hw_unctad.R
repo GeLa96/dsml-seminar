@@ -14,25 +14,29 @@
 # Sign in: https://unctadstat.unctad.org/datacentre/
 # -------------------------------------------------------------------
 # Load API credentials (local only, ignored by Git)
-if (file.exists("secrets.R")) source("secrets.R")
+if (file.exists("secrets.R")) source("secrets.R") # used such that clientId and clientSecret are availabe but not hard-coded
 
 getUnctadCpiData <- function(years = 2000:2024,
-                             economies = NULL,
-                             clientId, clientSecret,
-                             growthRate = TRUE) {
+                             economies = NULL, # Selects all economies by default
+                             clientId, clientSecret, # sign in to UNCTAD Data Centre to get these
+                             growthRate = TRUE) { # selects Annual average growth rate (M4017) not Index base 2010=100 (M6510) by default
     # temp csv gz file
-    tmpFile <- tempfile(fileext = ".csv.gz")
+    tmpFile <- tempfile(fileext = ".csv.gz") # UCTAD API supports gz compression
 
     # build filter String
-    filterString <- sprintf("Year in (%s)", paste(years, collapse = ","))
-
-    # Economy if not all (NULL)
-    if (!is.null(economies) && length(economies) > 0) {
+    filterString <- sprintf(
+        "Year in (%s)", # inserts string in template ; %s place holder for string
+        paste(years, collapse = ",") # combines slected years in a single string with commas
+    )
+    # Economy filter if not all (NULL)
+    if (!is.null(economies) && length(economies) > 0) { # filters if not NULL and length > 0
         filterString <- paste(
             filterString,
             sprintf(
                 "Economy/Code in ('%s')",
-                paste(unique(as.character(economies)), collapse = "','")
+                paste(unique(as.character(economies)),
+                    collapse = "','" # seperates
+                )
             ),
             sep = " and "
         )
