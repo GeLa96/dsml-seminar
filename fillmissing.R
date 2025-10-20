@@ -7,8 +7,6 @@ library(data.table)
 fillmiss <- function(data) {
     data <- as.data.table(data) # ensure data.table
     data <- data[!is.na(Year)] # drops rows with missing Year
-    data[, Year := as.integer(Year)]
-    data[, Value := as.numeric(Value)]
     setorder(data, Economy.Code, Year) # order by Economy.Code and Year
 
     data[, Value := { # runs by group (Economy.Code)
