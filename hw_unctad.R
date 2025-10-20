@@ -34,15 +34,15 @@ getUnctadCpiData <- function(years = 2000:2024,
             filterString,
             sprintf(
                 "Economy/Code in ('%s')",
-                paste(unique(as.character(economies)),
-                    collapse = "','" # seperates
+                paste(unique(as.character(economies)), # only unique as characters
+                    collapse = "','" # seperates country codes.
                 )
             ),
             sep = " and "
         )
     }
 
-    # select/compute (match template style; 2 decimals as requested)
+    # Select and compute strings based on growthRate
     if (growthRate) {
         # Annual average growth rate (M4017)
         selectString <- "Economy/Label ,Year ,Annual_average_growth_rate_Value ,Annual_average_growth_rate_Footnote ,Annual_average_growth_rate_MissingValue"
@@ -53,37 +53,37 @@ getUnctadCpiData <- function(years = 2000:2024,
         computeString <- "round(M6510/Value div 1, 2) as Index_Base_2010_Value, M6510/Footnote/Text as Index_Base_2010_Footnote, M6510/MissingValue/Label as Index_Base_2010_MissingValue"
     }
 
-    # url String
+    # url String for CPI
     urlString <- "https://unctadstat-user-api.unctad.org/US.Cpi_A/cur/Facts?culture=en"
 
-    # save results to gz-csv
-    handleString <- curl::new_handle() |>
-        curl::handle_setform(
-            "$select"  = selectString,
-            "$filter"  = filterString,
-            "$orderby" = "Economy/Order asc ,Year asc",
-            "$compute" = computeString,
-            "$format"  = "csv",
-            "compress" = "gz"
+    # save results to gz-csv ; curl:: for making internt requests
+    handleString <- curl::new_handle() |> # create a HTTP (API) request
+        curl::handle_setform( # Attach data fiels to be sent via HTTP
+            "$select"  = selectString, # select columns
+            "$filter"  = filterString, # apply conditions
+            "$orderby" = "Economy/Order asc ,Year asc", # order by economy and year ascending
+            "$compute" = computeString, # create processed output columns (computation on the server)
+            "$format"  = "csv", # output format
+            "compress" = "gz" # compress output
         ) |>
-        curl::handle_setheaders(
+        curl::handle_setheaders( # without it, API returns 401 Unauthorized
             "ClientId"     = clientId,
             "ClientSecret" = clientSecret
         )
-
+    # send request and download file
     curl::curl_download(urlString, tmpFile, handle = handleString)
 
     # Read back into R
-    data <- utils::read.csv(
-        gzfile(tmpFile),
-        header     = TRUE,
-        na.strings = "",
-        encoding   = "UTF-8",
-        colClasses = c("character", "integer", "double", "character", "character")
+    data <- utils::read.csv( # reads csv into R
+        gzfile(tmpFile), # opens copressed file
+        header     = TRUE, # first row as header
+        na.strings = "", # empty strings as NA
+        encoding   = "UTF-8", # UTF-8 encoding (special characters in country names)
+        colClasses = c("character", "integer", "double", "character", "character") # specify column types
     )
 
     # return output as data.table (GDP template returns data.table)
-    data.table::as.data.table(data)
+    data.table::as.data.table(data) # converts output to data.table
 }
 # "0000" = World
 # "5400" = Europe
