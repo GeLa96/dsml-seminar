@@ -5,7 +5,7 @@
 library(data.table)
 
 fillmiss <- function(data) {
-    data <- as.data.table(data) # ensure data.table
+    data <- as.data.table(data) # ensure data.tables
     data <- data[!is.na(Year)] # drops rows with missing Year
     data[, Year := as.integer(Year)]
     data[, Value := as.numeric(Value)]
