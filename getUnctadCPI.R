@@ -95,6 +95,6 @@ getUnctadCpiData <- function(years = NULL,
 
 clientId <- "70e80d59-00eb-4e26-b51e-c459d12aa6d8"
 clientSecret <- "uFieZejhm91ftgBfktJdgZObAy79BdQeINHAt/h49zY="
-cpi_index <- getUnctadCpiData(1950:2040, "0000", clientId, clientSecret, growthRate = TRUE)
+cpi_index <- getUnctadCpiData(1950:2040, NULL, clientId, clientSecret, growthRate = TRUE)
 head(cpi_index)
 View(cpi_index)
