@@ -14,9 +14,9 @@
 # Sign in: https://unctadstat.unctad.org/datacentre/
 # -------------------------------------------------------------------
 # Load API credentials (local only, ignored by Git)
-if (file.exists("secrets.R")) source("secrets.R") # used such that clientId and clientSecret are availabe but not hard-coded
+if (file.exists("secrets.R")) source("secrets.R") # used such that clientId and clientSecret are available but not hard-coded
 
-getUnctadCpiData <- function(years = 2000:2024,
+getUnctadCpiData <- function(years = NULL,
                              economies = NULL, # Selects all economies by default
                              clientId, clientSecret, # sign in to UNCTAD Data Centre to get these
                              growthRate = TRUE) { # selects Annual average growth rate (M4017) not Index base 2010=100 (M6510) by default
@@ -26,8 +26,10 @@ getUnctadCpiData <- function(years = 2000:2024,
   # build filter String
   filterString <- sprintf(
     "Year in (%s)", # inserts string in template ; %s place holder for string
-    paste(years, collapse = ",") # combines slected years in a single string with commas
+    paste(years, collapse = ",") # combines selected years in a single string with commas
   )
+  # creates something like this "Year in (2000, ... ,2024)"
+  
   # Economy filter if not all (NULL)
   if (!is.null(economies) && length(economies) > 0) { # filters if not NULL and length > 0
     filterString <- paste(
@@ -35,14 +37,15 @@ getUnctadCpiData <- function(years = 2000:2024,
       sprintf(
         "Economy/Code in ('%s')",
         paste(unique(as.character(economies)), # only unique as characters
-              collapse = "','" # seperates country codes.
+              collapse = "','" # seperats country codes.
         )
       ),
       sep = " and "
     )
   }
+  # creates something like "Year in (2000, ... ,2024) and Economy/Code in ("World")
   
-  # Select and compute strings based on growthRate
+  # Select and compute strings based on growth-rate
   if (growthRate) {
     # Annual average growth rate (M4017)
     selectString <- "Economy/Label ,Year ,Annual_average_growth_rate_Value ,Annual_average_growth_rate_Footnote ,Annual_average_growth_rate_MissingValue"
@@ -56,9 +59,9 @@ getUnctadCpiData <- function(years = 2000:2024,
   # url String for CPI
   urlString <- "https://unctadstat-user-api.unctad.org/US.Cpi_A/cur/Facts?culture=en"
   
-  # save results to gz-csv ; curl:: for making internt requests
+  # save results to gz-csv ; curl:: for making internet requests
   handleString <- curl::new_handle() |> # create a HTTP (API) request
-    curl::handle_setform( # Attach data fiels to be sent via HTTP
+    curl::handle_setform( # Attach data files to be sent via HTTP
       "$select"  = selectString, # select columns
       "$filter"  = filterString, # apply conditions
       "$orderby" = "Economy/Order asc ,Year asc", # order by economy and year ascending
@@ -71,11 +74,13 @@ getUnctadCpiData <- function(years = 2000:2024,
       "ClientSecret" = clientSecret
     )
   # send request and download file
-  curl::curl_download(urlString, tmpFile, handle = handleString)
+  curl::curl_download(urlString, # where to download from
+                      tmpFile, # where to save the file locally 
+                      handle = handleString) # connection setting 
   
   # Read back into R
   data <- utils::read.csv( # reads csv into R
-    gzfile(tmpFile), # opens copressed file
+    gzfile(tmpFile), # opens compressed file
     header     = TRUE, # first row as header
     na.strings = "", # empty strings as NA
     encoding   = "UTF-8", # UTF-8 encoding (special characters in country names)
@@ -88,7 +93,8 @@ getUnctadCpiData <- function(years = 2000:2024,
 # "0000" = World
 # "5400" = Europe
 
-clientId <- "..."
-clientSecret <- "..."
-cpi_index <- getUnctadCpiData(2000:2022, "5400", clientId, clientSecret, growthRate = TRUE)
+clientId <- "70e80d59-00eb-4e26-b51e-c459d12aa6d8"
+clientSecret <- "uFieZejhm91ftgBfktJdgZObAy79BdQeINHAt/h49zY="
+cpi_index <- getUnctadCpiData(1950:2040, "0000", clientId, clientSecret, growthRate = TRUE)
 head(cpi_index)
+View(cpi_index)
