@@ -17,16 +17,34 @@ library(ggplot2)
 library(plotly)
 options(scipen = 999)
 
-options(bitmapType="cairo"); options(warn=-1)
+options(bitmapType = "cairo")
+options(warn = -1)
 
 # ==========================
 # 1) LOAD DATA
 # ==========================
-load("~/Data")
+# load("~/Data")
+source("getUnctadCPIdata.R")
 
+cpi_dt <- getUnctadCPIdata(1900:2100, NULL)
+# names(cpi_dt)
+nm <- names(cpi_dt)
+econ_col <- if ("Economy.Label" %in% nm) "Economy.Label" else if ("Economy_Label" %in% nm) "Economy_Label" else stop("Economy label column not found")
 
+cpi_dt <- cpi_dt %>%
+  dplyr::transmute(
+    economy    = .data[[econ_col]],
+    year       = .data[["Year"]],
+    avg_growth = .data[["Annual_average_growth_rate_Value"]]
+  )
+data <- cpi_dt %>% dplyr::transmute(
+  Economy = economy,
+  Year = year,
+  CpiYoY = avg_growth
+)
 # vector of indicators
-indicator <- data %>% select(-Economy, -Year) %>% names()
+indicator <- "CpiYoY"
+# indicator <- data %>% select(-Economy, -Year) %>% names()
 
 # vector of all economies
 economy <- sort(unique(data$Economy))
@@ -39,8 +57,7 @@ lastYear <- max(data$Year, na.rm = TRUE)
 filterFirstToLastYear <- function(d, r) d %>% filter(Year >= r[1], Year <= r[2])
 
 # starting Parameters
-economySelected <- c("Germany","Austria","France","China")
-
+economySelected <- c("Germany", "Austria", "France", "China")
 ```
 
 
@@ -50,30 +67,34 @@ Sidebar {.sidebar}
 ### Input Parameters
 
 ```{r}
-selectizeInput("countries", "Countries (bottom chart)",choices = economy,multiple = TRUE,selected = economySelected,options = list(placeholder = "Select countries")
-)
+selectizeInput("countries", "Countries (bottom chart)", choices = setdiff(economy, "World"), multiple = TRUE, selected = intersect(economySelected, setdiff(economy, "World")), options = list(placeholder = "Select countries"))
 
-selectizeInput("country_top", "Country (top chart)",choices = economy,multiple = FALSE,selected = economySelected[[1]])
+selectizeInput("country_top", "Country (top chart)", choices = setdiff(economy, "World"), multiple = FALSE, selected = intersect(economySelected, setdiff(economy, "World"))[[1]])
 
-selectizeInput("indicators", "Indicators (top bars)",choices = setNames(indicator, indicator),multiple = TRUE,selected = "OutwardStock")
+selectizeInput("indicators", "Indicators (top bars)", choices = c("CpiYoY" = "CpiYoY"), multiple = FALSE, selected = "CpiYoY")
 
-selectizeInput("indicator_one", "Indicator (bottom)",choices = setNames(indicator, indicator),selected = indicator[[1]], multiple = FALSE)
+selectizeInput("indicator_one", "Indicator (bottom)", choices = c("CpiYoY" = "CpiYoY"), multiple = FALSE, selected = "CpiYoY")
 
-sliderInput("yearRange", "Years", min = firstYear, max = lastYear,value = c(max(firstYear, lastYear - 10), lastYear), step = 1, sep = "")
-
+sliderInput("yearRange", "Years", min = firstYear, max = lastYear, value = c(max(firstYear, lastYear - 10), lastYear), step = 1, sep = "")
 ```
 
 ```{r}
-
 # convert data to long format
-longData <- data %>% select(Economy, Year, all_of(indicator)) %>% pivot_longer(-c(Economy, Year), names_to = "Indicator", values_to = "Value")
+longData <- data %>%
+  select(Economy, Year, all_of(indicator)) %>%
+  pivot_longer(-c(Economy, Year), names_to = "Indicator", values_to = "Value")
 
 # calculate chane in %
-changeData <- longData %>% group_by(Economy, Indicator) %>% mutate(changeValue = 100 * (Value / lag(Value) - 1)) %>% ungroup()
+changeData <- longData %>% mutate(changeValue = Value)
+# changeData <- longData %>% group_by(Economy, Indicator) %>% mutate(changeValue = 100 * (Value / lag(Value) - 1)) %>% ungroup()
 
 # Reactives variables
-longDataR      <- reactive({longData})
-longchangeData  <- reactive({changeData})
+longDataR <- reactive({
+  longData
+})
+longchangeData <- reactive({
+  changeData
+})
 
 # reactive function to filter year and economies
 filterYearAndCountry <- reactive({
@@ -86,49 +107,52 @@ filterYearAndCountry <- reactive({
 })
 
 # reactive function to calculate changes for Economy == World
-calcGlobalChange <- function(longData, indicytor) {
-  longData %>% filter(Indicator == indicytor, Economy == "World") %>% mutate( World = 100 * (Value / lag(Value) - 1)) %>% select(Year, World)
+# calcGlobalChange <- function(longData, indicytor) {
+# longData %>% filter(Indicator == indicytor, Economy == "World") %>% mutate( World = 100 * (Value / lag(Value) - 1)) %>% select(Year, World)}
+calcGlobalChange <- function(longData, indicator) {
+  longData %>%
+    filter(Indicator == indicator, Economy == "World") %>%
+    transmute(Year, World = Value)
 }
 ```
 
 Row
 -------------------------------------
 
-### Time series: Indicators (bars) vs GDP (line) {data-height=450}
+### Time series: Indicators (bars) vs CPI (line) {data-height=450}
 
 ```{r}
 renderPlotly({
-  req(input$country_top, input$indicators)
+  req(input$country_top) # , input$indicators)
 
-  # Bars: chosen country (alle außer GDP)
-  bars_inds <- setdiff(input$indicators, "Gdp")
-  validate(need(length(bars_inds) > 0, "Please select at least one non-Gdp indicator for bars."))
+  # Bars: chosen country, (alles außer GDP)
+  # bars_inds <- setdiff(input$indicators, "Gdp")
+  # validate(need(length(bars_inds) > 0, "Please select at least one non-Gdp indicator for bars."))
 
   bars <- longchangeData() %>%
-    filter(Economy == input$country_top, Indicator %in% bars_inds) %>%
+    dplyr::filter(Economy == input$country_top, Indicator == "CpiYoY") %>%
     filterFirstToLastYear(input$yearRange) %>%
-    transmute(Year = as.integer(Year), Indicator, value = changeValue) %>%
-    filter(!is.na(value) & is.finite(value)) %>%
-    mutate(hover = paste0(
+    dplyr::transmute(Year = as.integer(Year), value = changeValue) %>%
+    dplyr::filter(is.finite(value)) %>%
+    dplyr::mutate(hover = paste0(
       Indicator, "<br>Year: ", Year,
-      "<br>Change: ", scales::label_number(accuracy = 0.1)(value)
+      "<br>Change: ", scales::label_number(accuracy = 0.1)(value), "%"
     ))
 
-  # GDP line
-  gdp_line <- longchangeData() %>%
-    filter(Economy == input$country_top, Indicator == "Gdp") %>%
+  #
+  world <- calcGlobalChange(longDataR(), "CpiYoY") %>%
     filterFirstToLastYear(input$yearRange) %>%
-    transmute(Year = as.integer(Year), Gdp = changeValue) %>%
-    filter(!is.na(Gdp) & is.finite(Gdp)) %>%
-    mutate(hover = paste0(
-      "GDP", "<br>Year: ", Year,
-      "<br>Change: ", scales::label_number(accuracy = 0.1)(Gdp)
+    dplyr::mutate(Year = as.integer(Year)) %>%
+    dplyr::filter(is.finite(World)) %>%
+    dplyr::mutate(hover = paste0(
+      "World", "<br>Year: ", Year,
+      "<br>CPI YoY: ", scales::label_number(accuracy = 0.1)(value), "%"
     ))
 
-  validate(need(nrow(bars) > 0, "No bar data available for the selected filters."))
-  validate(need(nrow(gdp_line) > 0, "No GDP series available for the selected filters."))
+  validate(need(nrow(bars) > 0, "No CPI data available for the selected country/years."))
+  validate(need(nrow(world) > 0, "No 'World' CPI series available for the selected years."))
 
-  rng <- range(c(bars$value, gdp_line$Gdp), na.rm = TRUE)
+  rng <- range(c(bars$value, world$World), na.rm = TRUE)
 
   p <- ggplot() +
     geom_col(
@@ -137,21 +161,21 @@ renderPlotly({
       position = "stack", width = 0.9, alpha = 0.9
     ) +
     geom_line(
-      data = gdp_line,
-      aes(x = Year, y = Gdp, group = 1, text = hover),
+      data = world,
+      aes(x = Year, y = World, group = 1, text = hover),
       linewidth = 0.7, color = "#2B2D42"
     ) +
     geom_point(
-      data = gdp_line,
-      aes(x = Year, y = Gdp, text = hover),
+      data = world,
+      aes(x = Year, y = World, text = hover),
       size = 2.2, color = "#2B2D42"
     ) +
     scale_fill_brewer(palette = "Set2") +
-    labs(x = NULL, y = "Change in %", fill = NULL) +
+    labs(x = NULL, y = "CPI YoY (%)", fill = NULL) +
     coord_cartesian(ylim = rng, expand = FALSE) +
     theme_minimal(base_size = 13) +
     theme(
-      plot.background   = element_rect(fill = "white",  color = NA),
+      plot.background   = element_rect(fill = "white", color = NA),
       panel.background  = element_rect(fill = "#F7F7F7", color = NA),
       panel.grid.major  = element_line(color = "#E1E1E1", linewidth = 0.4),
       panel.grid.minor  = element_line(color = "#EFEFEF", linewidth = 0.2),
@@ -166,7 +190,6 @@ renderPlotly({
       legend = list(orientation = "h", y = -0.15)
     )
 })
-
 ```
 
 Row
@@ -180,10 +203,16 @@ renderPlotly({
   ind <- input$indicator_one
 
   # Bars: filtered countries & years
-  bars <- filterYearAndCountry() %>%filter(Indicator == ind, Economy != "World") %>%transmute(Economy, Year = as.integer(Year), value = changeValue) %>% filter(!is.na(value) & is.finite(value))
+  bars <- filterYearAndCountry() %>%
+    filter(Indicator == ind, Economy != "World") %>%
+    transmute(Economy, Year = as.integer(Year), value = changeValue) %>%
+    filter(!is.na(value) & is.finite(value))
 
   # World line
-  world <- calcGlobalChange(longDataR(), ind) %>%filterFirstToLastYear(input$yearRange) %>%mutate(Year = as.integer(Year)) %>% filter(!is.na(World) & is.finite(World))
+  world <- calcGlobalChange(longDataR(), ind) %>%
+    filterFirstToLastYear(input$yearRange) %>%
+    mutate(Year = as.integer(Year)) %>%
+    filter(!is.na(World) & is.finite(World))
 
   validate(need(nrow(bars) > 0, "No country data for selected filter."))
   validate(need(nrow(world) > 0, "No 'World' series available for selected filter."))
@@ -191,8 +220,8 @@ renderPlotly({
   rng <- range(c(bars$value, world$World), na.rm = TRUE)
 
   # text formats
-  bars <- bars %>%mutate(hover = paste0(Economy, "<br>Year: ", Year,"<br>Change: ", scales::label_number(accuracy = 0.1)(value)))
-  world <- world %>%mutate(hover = paste0("World", "<br>Year: ", Year,"<br>Change: ", scales::label_number(accuracy = 0.1)(World)))
+  bars <- bars %>% mutate(hover = paste0(Economy, "<br>Year: ", Year, "<br>CPI YoY: ", scales::label_number(accuracy = 0.1)(value), "%"))
+  world <- world %>% mutate(hover = paste0("World", "<br>Year: ", Year, "<br>CPI YoY: ", scales::label_number(accuracy = 0.1)(World), "%"))
 
   p <- ggplot() +
     geom_col(
@@ -212,11 +241,11 @@ renderPlotly({
     ) +
     # Farbpalette (ggplot Standardpakete)
     scale_fill_brewer(palette = "Set2") +
-    labs(x = NULL, y = "Change in %", fill = NULL) +
+    labs(x = NULL, y = "CPI YOY (%)", fill = NULL) +
     coord_cartesian(ylim = rng, expand = FALSE) +
     theme_minimal(base_size = 13) +
     theme(
-      plot.background   = element_rect(fill = "white",  color = NA),
+      plot.background   = element_rect(fill = "white", color = NA),
       panel.background  = element_rect(fill = "#F7F7F7", color = NA),
       panel.grid.major  = element_line(color = "#E1E1E1", linewidth = 0.4),
       panel.grid.minor  = element_line(color = "#EFEFEF", linewidth = 0.2),
@@ -231,5 +260,4 @@ renderPlotly({
       legend = list(orientation = "h", y = -0.15)
     )
 })
-
 ```
