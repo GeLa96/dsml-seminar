@@ -116,19 +116,19 @@ stats <- cpi_index %>%
 
 # 2) highlight series (World, Europe) — uses labels already returned
 hl_df <- cpi_index %>%
-  filter(`Economy.Label` %in% c("World", "Europe")) %>%
+  filter(`Economy_Label` %in% c("World", "Europe", "Americas", "Asia", "Oceania")) %>%
   transmute(
-    Economy = `Economy.Label`,
+    Economy = `Economy_Label`,
     Year,
     value = Annual_average_growth_rate_Value
   )
 
 # 3) plot
 p <- ggplot() +
-  geom_ribbon(
+   geom_ribbon(
     data = stats, aes(x = Year, ymin = lo, ymax = hi),
     fill = "grey70", alpha = 0.35
-  ) +
+   ) +
   geom_line(
     data = hl_df, aes(x = Year, y = value, color = Economy),
     linewidth = 0.9
